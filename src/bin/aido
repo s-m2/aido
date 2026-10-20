@@ -3,6 +3,22 @@
 set -euo pipefail
 
 # ──────────────────────────────────────────────
+# Load modules
+# ──────────────────────────────────────────────
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" >/dev/null 2>&1 && pwd)"
+LIB_DIR="${SCRIPT_DIR%/bin}/lib"
+# shellcheck source=/dev/null
+. "${LIB_DIR}/util.sh"
+# shellcheck source=/dev/null
+. "${LIB_DIR}/context.sh"
+# shellcheck source=/dev/null
+. "${LIB_DIR}/prompt.sh"
+# shellcheck source=/dev/null
+. "${LIB_DIR}/llm.sh"
+# shellcheck source=/dev/null
+. "${LIB_DIR}/ui.sh"
+
+# ──────────────────────────────────────────────
 # Configuration (future: move to ~/.config/aido/config)
 # ──────────────────────────────────────────────
 MODEL="${AIDO_MODEL:-qwen2.5-coder:7b}"   # good starting point; change as you like
@@ -11,204 +27,6 @@ TEMPERATURE="${AIDO_TEMPERATURE:-0.1}"
 EDITOR="${EDITOR:-nano}"
 HISTORY_FILE="${HOME}/.aido/history.jsonl"
 MAX_RETRIES=2
-
-# ──────────────────────────────────────────────
-# Helpers
-# ──────────────────────────────────────────────
-die()  { echo "aido: $*" >&2; exit 1; }
-info() { echo "→ $*" >&2; }
-
-ensure_dirs() {
-  mkdir -p "$(dirname "$HISTORY_FILE")"
-}
-
-# ──────────────────────────────────────────────
-# System context
-# ──────────────────────────────────────────────
-gather_context() {
-  local os_info shell_info
-  if [[ -f /etc/os-release ]]; then
-    # shellcheck source=/dev/null
-    . /etc/os-release
-    os_info="${PRETTY_NAME:-$NAME $VERSION}"
-  else
-    os_info="$(uname -s) $(uname -r)"
-  fi
-  shell_info="${SHELL##*/} (${BASH_VERSION:-unknown})"
-
-  cat <<EOF
-OS: ${os_info}
-Kernel: $(uname -r)
-Shell: ${shell_info}
-User: ${USER:-$(whoami)}
-Home: ${HOME}
-PWD: ${PWD}
-PATH: ${PATH}
-Date: $(date -Iseconds)
-EOF
-}
-
-# ──────────────────────────────────────────────
-# System prompt (keep this extremely strict)
-# ──────────────────────────────────────────────
-build_system_prompt() {
-  local context
-  context=$(gather_context)
-
-  cat <<EOF
-You are a precise Linux command-line assistant.
-Your only job is to output a single, complete, executable shell command that fulfills the user's request.
-
-Rules:
-- Output ONLY the command. No markdown, no code fences, no explanations, no comments, no leading/trailing whitespace.
-- Prefer safe, idiomatic, portable constructs when possible.
-- Use the current working directory and environment information provided below.
-- If the request is ambiguous or dangerous, still produce the most reasonable single command (the user will review it).
-
-Environment:
-${context}
-EOF
-}
-
-# ──────────────────────────────────────────────
-# Ollama call
-# ──────────────────────────────────────────────
-call_ollama() {
-  local user_prompt="$1"
-  local system_prompt
-  system_prompt=$(build_system_prompt)
-
-  local payload
-  payload=$(jq -n \
-    --arg model "$MODEL" \
-    --arg system "$system_prompt" \
-    --arg prompt "$user_prompt" \
-    --argjson temp "$TEMPERATURE" \
-    '{
-      model: $model,
-      system: $system,
-      prompt: $prompt,
-      stream: false,
-      options: { temperature: $temp }
-    }')
-
-  local response
-  if ! response=$(curl -sS --fail \
-        -X POST "${OLLAMA_HOST}/api/generate" \
-        -H "Content-Type: application/json" \
-        -d "$payload"); then
-    die "Failed to reach Ollama at ${OLLAMA_HOST}. Is it running? (ollama serve)"
-  fi
-
-  # Extract the response text and clean it
-  local cmd
-  cmd=$(echo "$response" | jq -r '.response // empty' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-
-  if [[ -z "$cmd" ]]; then
-    die "Ollama returned an empty response"
-  fi
-
-  # Strip accidental markdown fences if the model misbehaves
-  cmd=$(echo "$cmd" | sed -E 's/^```(bash|sh)?//; s/```$//' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-
-  echo "$cmd"
-}
-
-# ──────────────────────────────────────────────
-# Editor helper
-# ──────────────────────────────────────────────
-edit_in_editor() {
-  local content="$1"
-  local tmp
-  tmp=$(mktemp)
-  printf '%s\n' "$content" > "$tmp"
-  ${EDITOR} "$tmp" </dev/tty >/dev/tty || true
-  local result
-  result=$(<"$tmp")
-  rm -f "$tmp"
-  # Remove trailing newline that editors often add
-  printf '%s' "$result"
-}
-
-# ──────────────────────────────────────────────
-# Logging
-# ──────────────────────────────────────────────
-log_history() {
-  local prompt="$1" cmd="$2" status="$3"
-  ensure_dirs
-  jq -n \
-    --arg ts "$(date -Iseconds)" \
-    --arg prompt "$prompt" \
-    --arg cmd "$cmd" \
-    --arg status "$status" \
-    --arg model "$MODEL" \
-    '{timestamp:$ts, prompt:$prompt, command:$cmd, status:$status, model:$model}' \
-    >> "$HISTORY_FILE"
-}
-
-# ──────────────────────────────────────────────
-# Interactive loop
-# ──────────────────────────────────────────────
-interactive_loop() {
-  local prompt="$1"
-  local cmd
-  local retries=0
-
-  while true; do
-    if [[ -z "${cmd:-}" ]]; then
-      info "Generating command with ${MODEL}..."
-      if ! cmd=$(call_ollama "$prompt"); then
-        die "LLM call failed"
-      fi
-    fi
-
-    echo
-    echo "Generated command:"
-    echo "────────────────────────────────────────────────────────"
-    echo "$cmd"
-    echo "────────────────────────────────────────────────────────"
-    echo
-    echo -n "[a]pprove  [e]dit command  [p]rompt again  [c]ancel  > "
-    read -r choice </dev/tty
-
-    case "${choice,,}" in
-      a|"")
-        echo
-        info "Executing..."
-        # Execute in current shell environment so cd, exports, etc. work
-        if eval "$cmd"; then
-          log_history "$prompt" "$cmd" "success"
-          info "Done (exit 0)"
-        else
-          local rc=$?
-          log_history "$prompt" "$cmd" "failed:$rc"
-          info "Command failed with exit code $rc"
-        fi
-        return
-        ;;
-      e)
-        cmd=$(edit_in_editor "$cmd")
-        # loop again to show the edited command
-        ;;
-      p)
-        prompt=$(edit_in_editor "$prompt")
-        cmd=""   # force regeneration
-        ((retries++)) || true
-        if (( retries > MAX_RETRIES )); then
-          info "Too many prompt retries. Consider refining your request."
-        fi
-        ;;
-      c|q)
-        info "Cancelled."
-        log_history "$prompt" "$cmd" "cancelled"
-        exit 0
-        ;;
-      *)
-        echo "Unknown option. Please choose a, e, p or c."
-        ;;
-    esac
-  done
-}
 
 # ──────────────────────────────────────────────
 # Main
