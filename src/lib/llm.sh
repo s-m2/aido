@@ -20,6 +20,7 @@ call_ollama() {
       system: $system,
       prompt: $prompt,
       stream: false,
+      think: false,
       options: { temperature: $temp }
     }')
 
