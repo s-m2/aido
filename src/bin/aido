@@ -19,14 +19,12 @@ LIB_DIR="${SCRIPT_DIR%/bin}/lib"
 . "${LIB_DIR}/ui.sh"
 
 # ──────────────────────────────────────────────
-# Configuration (future: move to ~/.config/aido/config)
+# Configuration
 # ──────────────────────────────────────────────
-MODEL="${AIDO_MODEL:-qwen2.5-coder:7b}"   # good starting point; change as you like
-OLLAMA_HOST="${OLLAMA_HOST:-http://localhost:11434}"
-TEMPERATURE="${AIDO_TEMPERATURE:-0.1}"
-EDITOR="${EDITOR:-nano}"
-HISTORY_FILE="${HOME}/.aido/history.jsonl"
-MAX_RETRIES=2
+# shellcheck source=/dev/null
+. "${LIB_DIR}/config.sh"
+load_config
+validate_config
 
 # ──────────────────────────────────────────────
 # Main
@@ -41,17 +39,36 @@ Examples:
   aido "show disk usage of the largest directories in the current folder"
   aido "create a python virtualenv and install requests"
 
-Environment variables:
+Options:
+  --config     Edit the user config (~/.config/aido/config.env)
+  --dry-run, -n  Generate a command without the interactive loop
+
+Environment variables (override config file):
   AIDO_MODEL          Ollama model (default: qwen2.5-coder:7b)
   OLLAMA_HOST         Ollama API URL (default: http://localhost:11434)
   AIDO_TEMPERATURE    Sampling temperature (default: 0.1)
-  EDITOR              Editor for edit/prompt actions
+  EDITOR              Editor for edit/config actions
 EOF
     exit 1
   fi
 
   # Join all arguments into one prompt (allows unquoted multi-word input)
   local user_prompt="$*"
+
+  # Open the user config in $EDITOR (first run creates a template).
+  for arg in "$@"; do
+    case "$arg" in
+      --config|-c)
+        ensure_config_template
+        info "Editing ${CONFIG_FILE}"
+        info "(save and exit to apply your config)"
+        ${EDITOR} "$CONFIG_FILE" </dev/tty >/dev/tty
+        load_config
+        validate_config
+        info "Config reloaded."
+        return 0 ;;
+    esac
+  done
 
   # Quick sanity checks
   command -v curl >/dev/null || die "curl is required"
