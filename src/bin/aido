@@ -58,6 +58,18 @@ EOF
   command -v jq   >/dev/null || die "jq is required"
   command -v ollama >/dev/null || info "Warning: 'ollama' binary not found in PATH (API may still work)"
 
+  # Non-interactive dry run: generate the command and print it, no approval loop.
+  for arg in "$@"; do
+    case "$arg" in
+      -n|--dry-run)
+        info "Dry run: generating command with ${MODEL}..."
+        cmd=$(call_ollama "$user_prompt")
+        echo "$cmd"
+        exit 0
+        ;;
+    esac
+  done
+
   interactive_loop "$user_prompt"
 }
 
