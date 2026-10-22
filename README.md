@@ -1,8 +1,9 @@
 # aido
 
 `aido` is a local-first, transparent natural-language → shell-command helper.
-It asks an Ollama model for a single command, shows it to you, and **only ever
-runs it after you approve** — it never auto-executes.
+Perfect for when you can't remember the right command or if you're learning.
+It asks an Ollama model for a single command, shows it to you, and enters an
+interactive approve/edit/cancel loop.
 
 ```mermaid
 flowchart TD
@@ -112,8 +113,6 @@ A value set to blank in the config file falls back to the default.
 ```bash
 bash test/run_tests.sh   # offline unit tests (uses test/mock_ollama.sh)
 ```
-
-See `PLAN.md` for the original project plan and design rationale.
 
 ## Layout
 

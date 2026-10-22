@@ -17,7 +17,7 @@ CONFIG_FILE="${CONFIG_DIR}/config.env"
 MODEL="${MODEL:-qwen2.5-coder:7b}"
 OLLAMA_HOST="${OLLAMA_HOST:-http://localhost:11434}"
 TEMPERATURE="${TEMPERATURE:-0.1}"
-EDITOR="${EDITOR:-nano}"
+EDITOR="${EDITOR:-vim}"
 HISTORY_FILE="${HISTORY_FILE:-${HOME}/.aido/history.jsonl}"
 MAX_RETRIES="${MAX_RETRIES:-2}"
 
