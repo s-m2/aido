@@ -73,7 +73,7 @@ EOF
   # Quick sanity checks
   command -v curl >/dev/null || die "curl is required"
   command -v jq   >/dev/null || die "jq is required"
-  # Remove ollama bin warning, may users probably use docker.
+  # Remove ollama bin warning, many users probably use docker or Ollama on LAN.
   # command -v ollama >/dev/null || info "Warning: 'ollama' binary not found in PATH (API may still work)"
 
   # Non-interactive dry run: generate the command and print it, no approval loop.
