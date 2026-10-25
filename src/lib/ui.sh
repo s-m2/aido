@@ -109,6 +109,27 @@ show_text() {
   esac
 }
 
+# Non-blocking waiting indicator.
+# dialog --infobox works. whiptail --infobox is broken in xterm (draws on the
+# alternate screen and immediately switches back), so we fall back to a
+# plain info line that stays visible on the shell.
+show_wait() {
+  local msg="$1"
+  case "${UI_MODE:-ansi}" in
+    dialog)
+      dialog --title "aido" --infobox "$msg" 5 50
+      ;;
+    whiptail)
+      # Try the TERM workaround; if it still vanishes, the info line remains.
+      TERM=vt220 whiptail --title "aido" --infobox "$msg" 5 50 2>/dev/null || true
+      info "$msg"
+      ;;
+    *)
+      info "$msg"
+      ;;
+  esac
+}
+
 # interactive_loop <prompt>
 # The core state machine: generate, then offer approve/edit/explain/prompt/cancel.
 interactive_loop() {
@@ -192,18 +213,7 @@ interactive_loop() {
         # loop again to show the edited command
         ;;
       x|explain)
-        # Show a waiting indicator that matches the UI, then the result.
-        case "${UI_MODE:-ansi}" in
-          dialog)
-            dialog --title "aido" --infobox "Asking model to explain..." 5 40
-            ;;
-          whiptail)
-            whiptail --title "aido" --infobox "Asking model to explain..." 5 40
-            ;;
-          *)
-            info "Asking model to explain..."
-            ;;
-        esac
+        show_wait "Asking model to explain..."
         local explain_sys="You are a helpful shell assistant. Explain the following command clearly and concisely: what it does, any important flags, potential risks, and safer alternatives if relevant. Keep it short."
         local explanation
         explanation=$(call_llm "$cmd" "$explain_sys") || explanation="(explain failed)"
@@ -219,17 +229,7 @@ interactive_loop() {
         fi
         # After the editor closes, show a regenerating indicator so the
         # screen doesn't look frozen while the model runs.
-        case "${UI_MODE:-ansi}" in
-          dialog)
-            dialog --title "aido" --infobox "Regenerating command..." 5 40
-            ;;
-          whiptail)
-            whiptail --title "aido" --infobox "Regenerating command..." 5 40
-            ;;
-          *)
-            info "Regenerating command..."
-            ;;
-        esac
+        show_wait "Regenerating command..."
         ;;
       c|q|cancel)
         info "Cancelled."
