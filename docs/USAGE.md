@@ -21,4 +21,4 @@ After a command is generated you're prompted:
 - **p / edit prompt** — refine the original natural-language request and regenerate
 - **c / cancel** — abort
 
-If `gum` or `dialog` is installed, the menu is presented with that tool instead of the plain text prompt.
+If `gum` is installed, the menu is presented with that tool instead of the plain text prompt.
