@@ -111,38 +111,41 @@ interactive_loop() {
     local choice
     local menu_text
     local status
-    menu_text=$(printf 'Generated command:\n\n%s\n\nSelect an action, or press Approve to run it.' "$cmd")
+    menu_text=$(printf 'Generated command:\n\n%s\n\nSelect an action below, or press Approve to run it.' "$cmd")
 
     case "${UI_MODE:-ansi}" in
       gum)
         choice=$(gum choose --header "What next?" "approve" "edit command" "explain" "edit prompt" "cancel") || choice=cancel
         ;;
       dialog)
-        # Extra button = Approve (exit 3). Ok = Select (exit 0, returns tag). Cancel = cancel (exit 1).
+        # List has only the non-button actions. Ok/Approve confirms the highlighted
+        # item; Cancel cancels. To approve the command, highlight nothing special
+        # and press Approve (we treat a missing/empty tag as approve).
         choice=$(dialog --stdout --title "aido" \
-          --ok-label "Select" --extra-button --extra-label "Approve" --cancel-label "Cancel" \
+          --ok-label "Approve" --cancel-label "Cancel" \
           --menu "$menu_text" 18 70 3 \
           e "edit command" x "explain" p "edit prompt" 2>&1)
         status=$?
-        case "$status" in
-          0) ;;          # use the selected tag (e/x/p)
-          3) choice=a ;; # extra button = approve the command
-          *) choice=c ;;
-        esac
+        if [[ "$status" -ne 0 ]]; then
+          choice=c
+        elif [[ -z "$choice" ]]; then
+          choice=a
+        fi
         ;;
       whiptail)
-        # Same idea: extra button for Approve when supported; otherwise Ok confirms the list item.
+        # Same layout. whiptail has no --extra-button, so Ok confirms the list item
+        # and Cancel cancels. Empty tag (shouldn't happen) is treated as approve.
         choice=$(whiptail --title "aido" \
-          --ok-button "Select" --extra-button --extra-label "Approve" --cancel-button "Cancel" \
+          --ok-button "Approve" --cancel-button "Cancel" \
           --menu "$menu_text" 18 70 3 \
           e "edit command" x "explain" p "edit prompt" \
           3>&1 1>&2 2>&3)
         status=$?
-        case "$status" in
-          0) ;;
-          3) choice=a ;;
-          *) choice=c ;;
-        esac
+        if [[ "$status" -ne 0 ]]; then
+          choice=c
+        elif [[ -z "$choice" ]]; then
+          choice=a
+        fi
         ;;
       *)
         echo -n "${BOLD}[a]${RESET}pprove  ${BOLD}[e]${RESET}dit command  ${BOLD}[x]${RESET}explain  ${BOLD}[p]${RESET}rompt again  ${BOLD}[c]${RESET}ancel  > "
