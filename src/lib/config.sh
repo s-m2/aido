@@ -14,10 +14,11 @@ CONFIG_DIR="${XDG_CONFIG_HOME:-${HOME}/.config}/aido"
 CONFIG_FILE="${CONFIG_DIR}/config.env"
 
 # Map each config key to the explicit env var that overrides it.
-# The file keys MODEL/TEMPERATURE are AIDO_MODEL/AIDO_TEMPERATURE.
 declare -A KEY_ENV=(
   [MODEL]=AIDO_MODEL
+  [BASE_URL]=AIDO_BASE_URL
   [OLLAMA_HOST]=OLLAMA_HOST
+  [API_KEY]=AIDO_API_KEY
   [TEMPERATURE]=AIDO_TEMPERATURE
   [EDITOR]=EDITOR
   [HISTORY_FILE]=HISTORY_FILE
@@ -48,17 +49,22 @@ load_config() {
 }
 
 # apply_defaults — fill in any key not set by an explicit env var or the config
-# file (env > file > default). Runs AFTER load_config(): assigning these defaults
-# here (rather than at the top of the file) is deliberate, because a non-empty
-# pre-default like OLLAMA_HOST would trip load_config()'s "env var already set"
-# check and silently ignore the user's config file value.
+# file (env > file > default). Runs AFTER load_config().
 apply_defaults() {
   MODEL="${MODEL:-qwen2.5-coder:7b}"
-  OLLAMA_HOST="${OLLAMA_HOST:-http://localhost:11434}"
   TEMPERATURE="${TEMPERATURE:-0.1}"
   EDITOR="${EDITOR:-vim}"
   HISTORY_FILE="${HISTORY_FILE:-${HOME}/.aido/history.jsonl}"
   MAX_RETRIES="${MAX_RETRIES:-2}"
+
+  # BASE_URL: prefer explicit, fall back to OLLAMA_HOST + /v1, else default Ollama /v1
+  if [[ -z "${BASE_URL:-}" ]]; then
+    if [[ -n "${OLLAMA_HOST:-}" ]]; then
+      BASE_URL="${OLLAMA_HOST%/}/v1"
+    else
+      BASE_URL="http://localhost:11434/v1"
+    fi
+  fi
 }
 
 # ensure_config_template — make sure the config directory + template exist
@@ -71,7 +77,10 @@ ensure_config_template() {
 # One KEY=value per line. Lines starting with # are comments.
 # Set a value to blank to fall back to the built-in default.
 MODEL=qwen2.5-coder:7b
-OLLAMA_HOST=http://localhost:11434
+# OpenAI-compatible base URL (Ollama default shown). Append /v1 is automatic if using OLLAMA_HOST.
+BASE_URL=http://localhost:11434/v1
+# Optional API key (leave blank for local Ollama)
+API_KEY=
 TEMPERATURE=0.1
 EDITOR=vim
 MAX_RETRIES=2

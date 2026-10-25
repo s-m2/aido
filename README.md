@@ -2,8 +2,8 @@
 
 `aido` is a local-first, transparent natural-language → shell-command helper.
 Perfect for when you can't remember the right command or if you're learning.
-It asks an Ollama model for a single command, shows it to you, and enters an
-interactive approve/edit/cancel loop.
+It asks an LLM (via any OpenAI-compatible endpoint) for a single command, shows it to you, and enters an
+interactive approve/edit/explain/cancel loop.
 
 ## Screencap
 
@@ -20,17 +20,19 @@ flowchart TD
     C --> D(Approve Command) --> E[Execute Command]
     C --> F(Edit Command) --> C
     C --> G(Edit Prompt) --> B
+    C --> X(Explain Command) --> C
     C --> H[Cancel and Exit]
 ```
 
 ## Features
 
-- **Local & private** — talks to your own [Ollama](https://ollama.com) server.
+- **Local & private by default** — talks to your own [Ollama](https://ollama.com) server (or any OpenAI-compatible endpoint).
 - **Never auto-executes** — you preview every command and approve before it runs.
-- **Interactive loop** — approve, edit the command, refine the prompt, or cancel.
-- **Configurable** — model, host, temperature and editor via a small config file.
+- **Interactive loop** — approve, edit the command, explain, refine the prompt, or cancel.
+- **Configurable** — model, base URL, temperature and editor via a small config file.
 - **Dry-run** — preview a generated command without the interactive loop.
 - **Command history** — every run is logged to `~/.aido/history.jsonl`.
+- **Light TUI** — ANSI framing by default; automatically uses `gum` or `dialog` when available.
 
 ## Quickstart
 
@@ -62,11 +64,11 @@ export PATH="$HOME/.local/bin:$PATH"   # so `aido` is on your PATH
 aido list the three largest files in the current directory
 ```
 
-See [`docs/USAGE.md`](docs/USAGE.md) for the full command loop, and [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) for tuning model, host, temperature and more.
+See [`docs/USAGE.md`](docs/USAGE.md) for the full command loop, and [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) for tuning model, base URL, temperature and more.
 
 ## Install
 
-Requires: `bash`, `curl`, `jq` (and [Ollama](https://ollama.com) running).
+Requires: `bash`, `curl`, `jq` (and an OpenAI-compatible LLM server such as [Ollama](https://ollama.com) running).
 
 ```bash
 ./scripts/install.sh          # installs to ~/.local (no root needed)
