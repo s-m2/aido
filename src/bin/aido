@@ -23,7 +23,11 @@ LIB_DIR="${SCRIPT_DIR%/bin}/lib"
 # ──────────────────────────────────────────────
 # shellcheck source=/dev/null
 . "${LIB_DIR}/config.sh"
+# Precedence: env var > config file > built-in default.
+# apply_defaults runs AFTER load_config so a config-file value beats the
+# built-in default (and an explicit env var beats both).
 load_config
+apply_defaults
 validate_config
 
 # ──────────────────────────────────────────────
