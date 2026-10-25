@@ -109,9 +109,15 @@ interactive_loop() {
       gum)
         choice=$(gum choose --header "What next?" "approve" "edit command" "explain" "edit prompt" "cancel") || choice=cancel
         ;;
-      dialog|whiptail)
-        choice=$(${UI_MODE} --stdout --menu "What next?" 14 50 5 \
+      dialog)
+        choice=$(dialog --stdout --menu "What next?" 14 50 5 \
           a "approve" e "edit command" x "explain" p "edit prompt" c "cancel" 2>&1) || choice=c
+        ;;
+      whiptail)
+        # whiptail writes the selected tag to stderr; swap fds so we can capture it.
+        choice=$(whiptail --menu "What next?" 14 50 5 \
+          a "approve" e "edit command" x "explain" p "edit prompt" c "cancel" \
+          3>&1 1>&2 2>&3) || choice=c
         ;;
       *)
         echo -n "${BOLD}[a]${RESET}pprove  ${BOLD}[e]${RESET}dit command  ${BOLD}[x]${RESET}explain  ${BOLD}[p]${RESET}rompt again  ${BOLD}[c]${RESET}ancel  > "
