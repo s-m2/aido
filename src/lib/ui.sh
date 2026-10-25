@@ -63,16 +63,12 @@ show_tui() {
 }
 
 # Show a short spinner message (non-blocking-ish for generation).
+# dialog/whiptail use an infobox only when regenerating after an edit;
+# the initial generation stays quiet so the menu appears without a flash.
 show_generating() {
   case "${UI_MODE:-ansi}" in
     gum)
       gum spin --spinner line --title "Generating command with ${MODEL}..." -- sleep 0.1 >/dev/null 2>&1 || true
-      ;;
-    dialog)
-      dialog --title "aido" --infobox "Generating command with ${MODEL}..." 5 50
-      ;;
-    whiptail)
-      whiptail --title "aido" --infobox "Generating command with ${MODEL}..." 5 50
       ;;
     *)
       info "Generating command with ${MODEL}..."
