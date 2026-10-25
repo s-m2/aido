@@ -110,21 +110,39 @@ interactive_loop() {
 
     local choice
     local menu_text
-    menu_text=$(printf 'Generated command:\n\n%s\n\nWhat next?' "$cmd")
+    local status
+    menu_text=$(printf 'Generated command:\n\n%s\n\nSelect an action, or press Approve to run it.' "$cmd")
 
     case "${UI_MODE:-ansi}" in
       gum)
         choice=$(gum choose --header "What next?" "approve" "edit command" "explain" "edit prompt" "cancel") || choice=cancel
         ;;
       dialog)
-        choice=$(dialog --stdout --title "aido" --ok-label "Approve" --menu "$menu_text" 18 70 5 \
-          a "approve" e "edit command" x "explain" p "edit prompt" c "cancel" 2>&1) || choice=c
+        # Extra button = Approve (exit 3). Ok = Select (exit 0, returns tag). Cancel = cancel (exit 1).
+        choice=$(dialog --stdout --title "aido" \
+          --ok-label "Select" --extra-button --extra-label "Approve" --cancel-label "Cancel" \
+          --menu "$menu_text" 18 70 3 \
+          e "edit command" x "explain" p "edit prompt" 2>&1)
+        status=$?
+        case "$status" in
+          0) ;;          # use the selected tag (e/x/p)
+          3) choice=a ;; # extra button = approve the command
+          *) choice=c ;;
+        esac
         ;;
       whiptail)
-        # whiptail writes the selected tag to stderr; swap fds so we can capture it.
-        choice=$(whiptail --title "aido" --ok-button "Approve" --menu "$menu_text" 18 70 5 \
-          a "approve" e "edit command" x "explain" p "edit prompt" c "cancel" \
-          3>&1 1>&2 2>&3) || choice=c
+        # Same idea: extra button for Approve when supported; otherwise Ok confirms the list item.
+        choice=$(whiptail --title "aido" \
+          --ok-button "Select" --extra-button --extra-label "Approve" --cancel-button "Cancel" \
+          --menu "$menu_text" 18 70 3 \
+          e "edit command" x "explain" p "edit prompt" \
+          3>&1 1>&2 2>&3)
+        status=$?
+        case "$status" in
+          0) ;;
+          3) choice=a ;;
+          *) choice=c ;;
+        esac
         ;;
       *)
         echo -n "${BOLD}[a]${RESET}pprove  ${BOLD}[e]${RESET}dit command  ${BOLD}[x]${RESET}explain  ${BOLD}[p]${RESET}rompt again  ${BOLD}[c]${RESET}ancel  > "
