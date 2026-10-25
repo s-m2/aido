@@ -194,9 +194,10 @@ if [[ -t 0 && -t 1 && -e /dev/tty ]]; then
   out=$(edit_in_editor "unchanged")
   assert_eq "unchanged" "$out" "edit_in_editor returns file content (no trailing newline)"
 
-  # Use a small helper script so quoting is reliable across shells.
+  # Helper rewrites the file to a known value (with trailing newline, as real
+  # editors do). edit_in_editor strips that trailing newline on the way out.
   editor_helper=$(mktemp)
-  printf '%s\n' '#!/bin/sh' 'printf E >> "$1"' > "$editor_helper"
+  printf '%s\n' '#!/bin/sh' 'printf "%s\n" "seedE" > "$1"' > "$editor_helper"
   chmod +x "$editor_helper"
   export EDITOR="$editor_helper"
   out=$(edit_in_editor "seed")
