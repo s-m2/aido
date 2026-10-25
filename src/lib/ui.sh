@@ -63,8 +63,6 @@ show_tui() {
 }
 
 # Show a short spinner message (non-blocking-ish for generation).
-# dialog/whiptail use an infobox only when regenerating after an edit;
-# the initial generation stays quiet so the menu appears without a flash.
 show_generating() {
   case "${UI_MODE:-ansi}" in
     gum)
@@ -109,20 +107,44 @@ show_text() {
   esac
 }
 
-# Non-blocking waiting indicator.
-# dialog --infobox works. whiptail --infobox is broken in xterm-style
-# terminals (blank box / alternate-screen bug), so we use a plain info
-# line that stays visible on the shell.
-show_wait() {
+# Run a command while keeping a visible waiting indicator.
+# For whiptail, a gauge stays on screen until the command finishes
+# (avoids dropping to the shell). For dialog, an infobox. Otherwise info.
+# Usage: result=$(run_with_wait "message" command args...)
+run_with_wait() {
   local msg="$1"
+  shift
+  local outfile
+  outfile=$(mktemp)
+
   case "${UI_MODE:-ansi}" in
+    whiptail)
+      # Start the work in the background, show a gauge until it exits.
+      "$@" >"$outfile" 2>/dev/null &
+      local pid=$!
+      (
+        local pct=10
+        while kill -0 "$pid" 2>/dev/null; do
+          echo "$pct"
+          pct=$(( (pct + 7) % 90 + 10 ))
+          sleep 0.4
+        done
+        echo 100
+      ) | whiptail --title "aido" --gauge "$msg" 6 50 0
+      wait "$pid" 2>/dev/null || true
+      ;;
     dialog)
       dialog --title "aido" --infobox "$msg" 5 50
+      "$@" >"$outfile" 2>/dev/null || true
       ;;
     *)
       info "$msg"
+      "$@" >"$outfile" 2>/dev/null || true
       ;;
   esac
+
+  cat "$outfile"
+  rm -f "$outfile"
 }
 
 # interactive_loop <prompt>
@@ -208,10 +230,9 @@ interactive_loop() {
         # loop again to show the edited command
         ;;
       x|explain)
-        show_wait "Asking model to explain..."
         local explain_sys="You are a helpful shell assistant. Explain the following command clearly and concisely: what it does, any important flags, potential risks, and safer alternatives if relevant. Keep it short."
         local explanation
-        explanation=$(call_llm "$cmd" "$explain_sys") || explanation="(explain failed)"
+        explanation=$(run_with_wait "Asking model to explain..." call_llm "$cmd" "$explain_sys") || explanation="(explain failed)"
         show_text "Explanation" "$explanation"
         # stay in the loop so user can still approve/edit/cancel
         ;;
@@ -222,9 +243,17 @@ interactive_loop() {
         if (( retries > MAX_RETRIES )); then
           info "Too many prompt retries. Consider refining your request."
         fi
-        # After the editor closes, show a regenerating indicator so the
-        # screen doesn't look frozen while the model runs.
-        show_wait "Regenerating command..."
+        # After the editor closes, keep a waiting indicator up while the
+        # model regenerates the command (handled on the next loop iteration
+        # for non-whiptail; for whiptail we show it here so we don't drop).
+        if [[ "${UI_MODE:-ansi}" == "whiptail" ]]; then
+          # The actual regeneration happens at the top of the loop.
+          # Show a brief gauge so the transition isn't a blank shell.
+          ( echo 30; sleep 0.3; echo 70; sleep 0.3; echo 100 ) | \
+            whiptail --title "aido" --gauge "Regenerating command..." 6 50 0
+        else
+          info "Regenerating command..."
+        fi
         ;;
       c|q|cancel)
         info "Cancelled."
