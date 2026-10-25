@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# run_tests.sh — offline unit tests for aido's Phase 2 testability layer.
+# run_tests.sh — offline unit tests for aido.
 #
-# Exercises the modules under test in isolation using a fake Ollama backend,
-# so the real interactive loop and network are never touched.
+# Exercises the modules under test in isolation using a fake OpenAI-compatible
+# backend, so the real interactive loop and network are never touched.
 #
 # Requires: bash, jq, curl (curl is only needed for syntax, not execution).
 #
@@ -73,32 +73,62 @@ assert_nonempty "build_system_prompt returns non-empty" "$sys"
 [[ "$sys" == *"Environment:"* ]] && \
   pass "system prompt injects environment" || fail "system prompt injects environment"
 
-echo "=== llm.sh (mock Ollama) ==="
+echo "=== config.sh (BASE_URL derivation) ==="
+# shellcheck source=/dev/null
+. "${LIB_DIR}/config.sh"
+
+# Default when nothing is set
+unset BASE_URL OLLAMA_HOST AIDO_BASE_URL || true
+apply_defaults
+assert_eq "http://localhost:11434/v1" "$BASE_URL" "BASE_URL defaults to Ollama /v1"
+
+# Derived from OLLAMA_HOST
+unset BASE_URL AIDO_BASE_URL || true
+export OLLAMA_HOST="http://example:11434"
+apply_defaults
+assert_eq "http://example:11434/v1" "$BASE_URL" "BASE_URL derived from OLLAMA_HOST"
+
+# Explicit BASE_URL wins
+export BASE_URL="http://custom/v1"
+apply_defaults
+assert_eq "http://custom/v1" "$BASE_URL" "explicit BASE_URL is preserved"
+unset BASE_URL OLLAMA_HOST
+
+echo "=== llm.sh (mock OpenAI-compatible) ==="
 # shellcheck source=/dev/null
 . "${LIB_DIR}/llm.sh"
 # Prepend the fake curl dir and force the mock to answer with a known command.
 export PATH="$SCRIPT_DIR:$PATH"
 # Config vars that the real entry point sets; the harness sources modules directly.
 export MODEL='mock-model'
-export OLLAMA_HOST='http://localhost:11434'
+export BASE_URL='http://localhost:11434/v1'
 export TEMPERATURE='0.1'
 export AIDO_MOCK_RESPONSE='echo hello-from-mock'
+got=$(call_llm "list files")
+assert_eq "echo hello-from-mock" "$got" "call_llm returns cleaned mock command"
+
+# Alias still works
 got=$(call_ollama "list files")
-assert_eq "echo hello-from-mock" "$got" "call_ollama returns cleaned mock command"
+assert_eq "echo hello-from-mock" "$got" "call_ollama alias returns cleaned mock command"
 
 # Mock returns a markdown-fenced command (inline); the fence strip should remove it.
 export AIDO_MOCK_RESPONSE='```echo fenced```'
-got=$(call_ollama "list files")
-assert_eq "echo fenced" "$got" "call_ollama strips markdown fences"
+got=$(call_llm "list files")
+assert_eq "echo fenced" "$got" "call_llm strips markdown fences"
 
 # Mock returns a leading/trailing-whitespace command; trimmed.
 export AIDO_MOCK_RESPONSE='   echo padded   '
-got=$(call_ollama "list files")
-assert_eq "echo padded" "$got" "call_ollama trims leading/trailing whitespace"
+got=$(call_llm "list files")
+assert_eq "echo padded" "$got" "call_llm trims leading/trailing whitespace"
 
-# curl failure -> call_ollama should die (non-zero).
+# System override path (used by explain)
+export AIDO_MOCK_RESPONSE='This command lists files.'
+got=$(call_llm "ls -la" "You are a helpful shell assistant. Explain the following command.")
+assert_eq "This command lists files." "$got" "call_llm accepts system override"
+
+# curl failure -> call_llm should die (non-zero).
 export AIDO_MOCK_STATUS=7
-assert_fails "call_ollama fails when curl can't connect" call_ollama "list files"
+assert_fails "call_llm fails when curl can't connect" call_llm "list files"
 unset AIDO_MOCK_STATUS
 
 echo "=== ui.sh (edit_in_editor) ==="
