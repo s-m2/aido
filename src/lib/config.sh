@@ -86,8 +86,8 @@ API_KEY=
 TEMPERATURE=0.1
 EDITOR=vim
 MAX_RETRIES=2
-# TUI: auto | ansi | gum | dialog | whiptail
-# auto picks the best available (gum > dialog/whiptail > ansi)
+# TUI: auto | ansi | gum
+# auto picks gum if installed, otherwise ansi
 TUI=auto
 EOF
   info "Created template config at ${CONFIG_FILE}"
@@ -107,9 +107,9 @@ validate_config() {
     MAX_RETRIES=2
   }
   case "${TUI,,}" in
-    auto|ansi|gum|dialog|whiptail) TUI="${TUI,,}" ;;
+    auto|ansi|gum) TUI="${TUI,,}" ;;
     *)
-      info "Warning: TUI='${TUI}' is not valid (auto|ansi|gum|dialog|whiptail); using auto"
+      info "Warning: TUI='${TUI}' is not valid (auto|ansi|gum); using auto"
       TUI=auto
       ;;
   esac
