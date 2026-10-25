@@ -13,14 +13,6 @@
 CONFIG_DIR="${XDG_CONFIG_HOME:-${HOME}/.config}/aido"
 CONFIG_FILE="${CONFIG_DIR}/config.env"
 
-# Built-in defaults (lowest precedence).
-MODEL="${MODEL:-qwen2.5-coder:7b}"
-OLLAMA_HOST="${OLLAMA_HOST:-http://localhost:11434}"
-TEMPERATURE="${TEMPERATURE:-0.1}"
-EDITOR="${EDITOR:-vim}"
-HISTORY_FILE="${HISTORY_FILE:-${HOME}/.aido/history.jsonl}"
-MAX_RETRIES="${MAX_RETRIES:-2}"
-
 # Map each config key to the explicit env var that overrides it.
 # The file keys MODEL/TEMPERATURE are AIDO_MODEL/AIDO_TEMPERATURE.
 declare -A KEY_ENV=(
@@ -53,6 +45,20 @@ load_config() {
     [[ -n "${!overridename:-}" ]] && continue
     export "$key"="$val"
   done < "$CONFIG_FILE"
+}
+
+# apply_defaults — fill in any key not set by an explicit env var or the config
+# file (env > file > default). Runs AFTER load_config(): assigning these defaults
+# here (rather than at the top of the file) is deliberate, because a non-empty
+# pre-default like OLLAMA_HOST would trip load_config()'s "env var already set"
+# check and silently ignore the user's config file value.
+apply_defaults() {
+  MODEL="${MODEL:-qwen2.5-coder:7b}"
+  OLLAMA_HOST="${OLLAMA_HOST:-http://localhost:11434}"
+  TEMPERATURE="${TEMPERATURE:-0.1}"
+  EDITOR="${EDITOR:-vim}"
+  HISTORY_FILE="${HISTORY_FILE:-${HOME}/.aido/history.jsonl}"
+  MAX_RETRIES="${MAX_RETRIES:-2}"
 }
 
 # ensure_config_template — make sure the config directory + template exist
