@@ -5,12 +5,20 @@ Perfect for when you can't remember the right command or if you're learning.
 It asks an Ollama model for a single command, shows it to you, and enters an
 interactive approve/edit/cancel loop.
 
+## Screencap
+
+Screencap shows an install and command execution + edit loop on local ollama running off CPU.
+
+![Screen Capture](screencap.gif)
+
+## Flowchart
+
 ```mermaid
 flowchart TD
     A(Invoke 'aido' for terminal assistance) -->|Inject system context| B{LLM}
     B -->|LLM Response| C[Command Preview]
     C --> D(Approve Command) --> E[Execute Command]
-    C --> F(Edit Command) --> E
+    C --> F(Edit Command) --> C
     C --> G(Edit Prompt) --> B
     C --> H[Cancel and Exit]
 ```
@@ -51,7 +59,7 @@ export PATH="$HOME/.local/bin:$PATH"   # so `aido` is on your PATH
 **4. Try it out:**
 
 ```bash
-aido --dry-run "list the three largest files in the current directory"
+aido list the three largest files in the current directory
 ```
 
 See [`docs/USAGE.md`](docs/USAGE.md) for the full command loop, and [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) for tuning model, host, temperature and more.
@@ -63,19 +71,3 @@ Requires: `bash`, `curl`, `jq` (and [Ollama](https://ollama.com) running).
 ```bash
 ./scripts/install.sh          # installs to ~/.local (no root needed)
 ```
-
-Options:
-
-| Flag          | Description                                            |
-| ------------- | ------------------------------------------------------ |
-| `--dry-run`   | Show what would be installed without installing        |
-| `--prefix P`  | Install to `P/bin` and `P/lib` (default `~/.local`)    |
-| `--force`     | Overwrite an existing install                          |
-| `--uninstall` | Remove aido's files (keeps your command history)       |
-| `--sudo`      | Install to a system path (e.g. `/usr/local`) with sudo |
-
-> After `~/.local` installs, make sure `~/.local/bin` is on your `PATH`:
->
-> ```bash
-> export PATH="$HOME/.local/bin:$PATH"
-> ```
