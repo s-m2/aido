@@ -1,5 +1,6 @@
 # ──────────────────────────────────────────────
 # ui.sh — interactive approval loop + editor helper + light TUI
+# Supports: ansi (default) and gum (when available).
 # ──────────────────────────────────────────────
 
 # Colors (safe if terminal doesn't support them)
@@ -29,11 +30,11 @@ edit_in_editor() {
 }
 
 # Resolve UI_MODE from TUI config (or auto-detect).
-# Sets UI_MODE to one of: gum, dialog, whiptail, ansi
+# Sets UI_MODE to one of: gum, ansi
 detect_ui() {
   local want="${TUI:-auto}"
   case "$want" in
-    gum|dialog|whiptail|ansi)
+    gum|ansi)
       if [[ "$want" == "ansi" ]] || command -v "$want" >/dev/null 2>&1; then
         UI_MODE="$want"
       else
@@ -46,10 +47,6 @@ detect_ui() {
   if [[ "$want" == "auto" || -z "${UI_MODE:-}" ]]; then
     if command -v gum >/dev/null 2>&1; then
       UI_MODE=gum
-    elif command -v dialog >/dev/null 2>&1; then
-      UI_MODE=dialog
-    elif command -v whiptail >/dev/null 2>&1; then
-      UI_MODE=whiptail
     else
       UI_MODE=ansi
     fi
@@ -85,68 +82,6 @@ show_command() {
   echo
 }
 
-# Show text to the user in a way that matches the current UI mode.
-# For dialog/whiptail this is a blocking msgbox so the text isn't lost
-# when the next menu opens.
-show_text() {
-  local title="$1"
-  local body="$2"
-  case "${UI_MODE:-ansi}" in
-    dialog)
-      dialog --title "$title" --msgbox "$body" 20 70
-      ;;
-    whiptail)
-      whiptail --title "$title" --msgbox "$body" 20 70
-      ;;
-    *)
-      echo
-      echo "${YELLOW}${BOLD}${title}:${RESET}"
-      echo "$body"
-      echo
-      ;;
-  esac
-}
-
-# Run a command while keeping a visible waiting indicator.
-# For whiptail, a gauge stays on screen until the command finishes
-# (avoids dropping to the shell). For dialog, an infobox. Otherwise info.
-# Usage: result=$(run_with_wait "message" command args...)
-run_with_wait() {
-  local msg="$1"
-  shift
-  local outfile
-  outfile=$(mktemp)
-
-  case "${UI_MODE:-ansi}" in
-    whiptail)
-      # Start the work in the background, show a gauge until it exits.
-      "$@" >"$outfile" 2>/dev/null &
-      local pid=$!
-      (
-        local pct=10
-        while kill -0 "$pid" 2>/dev/null; do
-          echo "$pct"
-          pct=$(( (pct + 7) % 90 + 10 ))
-          sleep 0.4
-        done
-        echo 100
-      ) | whiptail --title "aido" --gauge "$msg" 6 50 0
-      wait "$pid" 2>/dev/null || true
-      ;;
-    dialog)
-      dialog --title "aido" --infobox "$msg" 5 50
-      "$@" >"$outfile" 2>/dev/null || true
-      ;;
-    *)
-      info "$msg"
-      "$@" >"$outfile" 2>/dev/null || true
-      ;;
-  esac
-
-  cat "$outfile"
-  rm -f "$outfile"
-}
-
 # interactive_loop <prompt>
 # The core state machine: generate, then offer approve/edit/explain/prompt/cancel.
 interactive_loop() {
@@ -164,45 +99,12 @@ interactive_loop() {
       fi
     fi
 
-    # ANSI / gum leave the terminal intact, so print the command normally.
-    # dialog / whiptail take over the screen, so embed the command in the menu text.
-    if [[ "${UI_MODE:-ansi}" != "dialog" && "${UI_MODE:-ansi}" != "whiptail" ]]; then
-      show_command "$cmd"
-    fi
+    show_command "$cmd"
 
     local choice
-    local menu_text
-    local status
-    menu_text=$(printf 'Generated command:\n\n%s\n\nSelect an action below, or press Approve to run it.' "$cmd")
-
     case "${UI_MODE:-ansi}" in
       gum)
         choice=$(gum choose --header "What next?" "approve" "edit command" "explain" "edit prompt" "cancel") || choice=cancel
-        ;;
-      dialog)
-        choice=$(dialog --stdout --title "aido" \
-          --ok-label "Approve" --cancel-label "Cancel" \
-          --menu "$menu_text" 18 70 3 \
-          e "edit command" x "explain" p "edit prompt" 2>&1)
-        status=$?
-        if [[ "$status" -ne 0 ]]; then
-          choice=c
-        elif [[ -z "$choice" ]]; then
-          choice=a
-        fi
-        ;;
-      whiptail)
-        choice=$(whiptail --title "aido" \
-          --ok-button "Approve" --cancel-button "Cancel" \
-          --menu "$menu_text" 18 70 3 \
-          e "edit command" x "explain" p "edit prompt" \
-          3>&1 1>&2 2>&3)
-        status=$?
-        if [[ "$status" -ne 0 ]]; then
-          choice=c
-        elif [[ -z "$choice" ]]; then
-          choice=a
-        fi
         ;;
       *)
         echo -n "${BOLD}[a]${RESET}pprove  ${BOLD}[e]${RESET}dit command  ${BOLD}[x]${RESET}explain  ${BOLD}[p]${RESET}rompt again  ${BOLD}[c]${RESET}ancel  > "
@@ -230,10 +132,14 @@ interactive_loop() {
         # loop again to show the edited command
         ;;
       x|explain)
+        echo
+        info "Asking model to explain..."
         local explain_sys="You are a helpful shell assistant. Explain the following command clearly and concisely: what it does, any important flags, potential risks, and safer alternatives if relevant. Keep it short."
         local explanation
-        explanation=$(run_with_wait "Asking model to explain..." call_llm "$cmd" "$explain_sys") || explanation="(explain failed)"
-        show_text "Explanation" "$explanation"
+        explanation=$(call_llm "$cmd" "$explain_sys") || explanation="(explain failed)"
+        echo "${YELLOW}${BOLD}Explanation:${RESET}"
+        echo "$explanation"
+        echo
         # stay in the loop so user can still approve/edit/cancel
         ;;
       p|"edit prompt")
@@ -243,17 +149,7 @@ interactive_loop() {
         if (( retries > MAX_RETRIES )); then
           info "Too many prompt retries. Consider refining your request."
         fi
-        # After the editor closes, keep a waiting indicator up while the
-        # model regenerates the command (handled on the next loop iteration
-        # for non-whiptail; for whiptail we show it here so we don't drop).
-        if [[ "${UI_MODE:-ansi}" == "whiptail" ]]; then
-          # The actual regeneration happens at the top of the loop.
-          # Show a brief gauge so the transition isn't a blank shell.
-          ( echo 30; sleep 0.3; echo 70; sleep 0.3; echo 100 ) | \
-            whiptail --title "aido" --gauge "Regenerating command..." 6 50 0
-        else
-          info "Regenerating command..."
-        fi
+        info "Regenerating command..."
         ;;
       c|q|cancel)
         info "Cancelled."
