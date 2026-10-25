@@ -102,20 +102,27 @@ interactive_loop() {
       fi
     fi
 
-    show_command "$cmd"
+    # ANSI / gum leave the terminal intact, so print the command normally.
+    # dialog / whiptail take over the screen, so embed the command in the menu text.
+    if [[ "${UI_MODE:-ansi}" != "dialog" && "${UI_MODE:-ansi}" != "whiptail" ]]; then
+      show_command "$cmd"
+    fi
 
     local choice
+    local menu_text
+    menu_text=$(printf 'Generated command:\n\n%s\n\nWhat next?' "$cmd")
+
     case "${UI_MODE:-ansi}" in
       gum)
         choice=$(gum choose --header "What next?" "approve" "edit command" "explain" "edit prompt" "cancel") || choice=cancel
         ;;
       dialog)
-        choice=$(dialog --stdout --menu "What next?" 14 50 5 \
+        choice=$(dialog --stdout --title "aido" --menu "$menu_text" 18 70 5 \
           a "approve" e "edit command" x "explain" p "edit prompt" c "cancel" 2>&1) || choice=c
         ;;
       whiptail)
         # whiptail writes the selected tag to stderr; swap fds so we can capture it.
-        choice=$(whiptail --menu "What next?" 14 50 5 \
+        choice=$(whiptail --title "aido" --menu "$menu_text" 18 70 5 \
           a "approve" e "edit command" x "explain" p "edit prompt" c "cancel" \
           3>&1 1>&2 2>&3) || choice=c
         ;;
