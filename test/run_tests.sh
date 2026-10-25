@@ -154,35 +154,19 @@ else
   echo "  SKIP: TUI=gum (gum not installed)"
 fi
 
-if command -v dialog >/dev/null 2>&1; then
-  export TUI=dialog
-  detect_ui
-  assert_eq "dialog" "$UI_MODE" "TUI=dialog selects dialog"
-else
-  echo "  SKIP: TUI=dialog (dialog not installed)"
-fi
-
-if command -v whiptail >/dev/null 2>&1; then
-  export TUI=whiptail
-  detect_ui
-  assert_eq "whiptail" "$UI_MODE" "TUI=whiptail selects whiptail"
-else
-  echo "  SKIP: TUI=whiptail (whiptail not installed)"
-fi
-
 # auto picks something valid
 export TUI=auto
 detect_ui
 case "$UI_MODE" in
-  gum|dialog|whiptail|ansi) pass "TUI=auto selects a valid mode ($UI_MODE)" ;;
+  gum|ansi) pass "TUI=auto selects a valid mode ($UI_MODE)" ;;
   *) fail "TUI=auto selects a valid mode" "got '$UI_MODE'" ;;
 esac
 
-# invalid falls back to auto behavior (via validate, but detect_ui itself tolerates)
+# invalid falls back to auto behavior
 export TUI=not-a-mode
 detect_ui
 case "$UI_MODE" in
-  gum|dialog|whiptail|ansi) pass "invalid TUI falls back to a valid mode ($UI_MODE)" ;;
+  gum|ansi) pass "invalid TUI falls back to a valid mode ($UI_MODE)" ;;
   *) fail "invalid TUI falls back to a valid mode" "got '$UI_MODE'" ;;
 esac
 
