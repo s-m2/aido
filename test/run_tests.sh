@@ -96,7 +96,13 @@ unset BASE_URL OLLAMA_HOST
 
 echo "=== llm.sh (mock OpenAI-compatible) ==="
 # shellcheck source=/dev/null
+. "${LIB_DIR}/util.sh"
+# shellcheck source=/dev/null
 . "${LIB_DIR}/llm.sh"
+
+# Ensure the mock provider is executable (git may have stored it as 644).
+chmod +x "$SCRIPT_DIR/mock_provider.sh" 2>/dev/null || true
+
 # Prepend the fake curl dir and force the mock to answer with a known command.
 export PATH="$SCRIPT_DIR:$PATH"
 # Config vars that the real entry point sets; the harness sources modules directly.
@@ -188,9 +194,14 @@ if [[ -t 0 && -t 1 && -e /dev/tty ]]; then
   out=$(edit_in_editor "unchanged")
   assert_eq "unchanged" "$out" "edit_in_editor returns file content (no trailing newline)"
 
-  export EDITOR='sh -c "printf E >> \"$1\""'
+  # Use a small helper script so quoting is reliable across shells.
+  editor_helper=$(mktemp)
+  printf '%s\n' '#!/bin/sh' 'printf E >> "$1"' > "$editor_helper"
+  chmod +x "$editor_helper"
+  export EDITOR="$editor_helper"
   out=$(edit_in_editor "seed")
   assert_eq "seedE" "$out" "edit_in_editor reflects edited file content"
+  rm -f "$editor_helper"
 else
   echo "  SKIP: edit_in_editor (requires interactive TTY)"
 fi
