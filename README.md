@@ -32,7 +32,7 @@ flowchart TD
 - **Configurable** — model, base URL, temperature and editor via a small config file.
 - **Dry-run** — preview a generated command without the interactive loop.
 - **Command history** — every run is logged to `~/.aido/history.jsonl`.
-- **Light TUI** — ANSI framing by default; automatically uses `gum` or `dialog` when available.
+- **Light TUI** — ANSI framing by default; automatically uses `gum` when available.
 
 ## Quickstart
 
