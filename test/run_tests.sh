@@ -131,10 +131,56 @@ export AIDO_MOCK_STATUS=7
 assert_fails "call_llm fails when curl can't connect" call_llm "list files"
 unset AIDO_MOCK_STATUS
 
-echo "=== ui.sh (edit_in_editor) ==="
+echo "=== ui.sh (TUI selection) ==="
 # shellcheck source=/dev/null
 . "${LIB_DIR}/ui.sh"
 
+# Forced modes (when the binary exists or mode is ansi)
+export TUI=ansi
+detect_ui
+assert_eq "ansi" "$UI_MODE" "TUI=ansi selects ansi"
+
+if command -v gum >/dev/null 2>&1; then
+  export TUI=gum
+  detect_ui
+  assert_eq "gum" "$UI_MODE" "TUI=gum selects gum"
+else
+  echo "  SKIP: TUI=gum (gum not installed)"
+fi
+
+if command -v dialog >/dev/null 2>&1; then
+  export TUI=dialog
+  detect_ui
+  assert_eq "dialog" "$UI_MODE" "TUI=dialog selects dialog"
+else
+  echo "  SKIP: TUI=dialog (dialog not installed)"
+fi
+
+if command -v whiptail >/dev/null 2>&1; then
+  export TUI=whiptail
+  detect_ui
+  assert_eq "whiptail" "$UI_MODE" "TUI=whiptail selects whiptail"
+else
+  echo "  SKIP: TUI=whiptail (whiptail not installed)"
+fi
+
+# auto picks something valid
+export TUI=auto
+detect_ui
+case "$UI_MODE" in
+  gum|dialog|whiptail|ansi) pass "TUI=auto selects a valid mode ($UI_MODE)" ;;
+  *) fail "TUI=auto selects a valid mode" "got '$UI_MODE'" ;;
+esac
+
+# invalid falls back to auto behavior (via validate, but detect_ui itself tolerates)
+export TUI=not-a-mode
+detect_ui
+case "$UI_MODE" in
+  gum|dialog|whiptail|ansi) pass "invalid TUI falls back to a valid mode ($UI_MODE)" ;;
+  *) fail "invalid TUI falls back to a valid mode" "got '$UI_MODE'" ;;
+esac
+
+echo "=== ui.sh (edit_in_editor) ==="
 # edit_in_editor reads from/writes to the controlling TTY, so it only works in
 # an interactive session. Guard these tests with a TTY check.
 if [[ -t 0 && -t 1 && -e /dev/tty ]]; then

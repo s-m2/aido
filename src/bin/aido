@@ -44,8 +44,9 @@ Examples:
   aido "create a python virtualenv and install requests"
 
 Options:
-  --config     Edit the user config (~/.config/aido/config.env)
-  --dry-run, -n  Generate a command without the interactive loop
+  --config         Edit the user config (~/.config/aido/config.env)
+  --dry-run, -n    Generate a command without the interactive loop
+  --tui, --show-tui  Print the resolved TUI mode (ansi|gum|dialog|whiptail) and exit
 
 Environment variables (override config file):
   AIDO_MODEL          Model name (default: qwen2.5-coder:7b)
@@ -53,6 +54,7 @@ Environment variables (override config file):
   OLLAMA_HOST         Legacy: used to derive BASE_URL if set
   AIDO_API_KEY        Optional API key for cloud endpoints
   AIDO_TEMPERATURE    Sampling temperature (default: 0.1)
+  AIDO_TUI            TUI mode: auto|ansi|gum|dialog|whiptail (default: auto)
   EDITOR              Editor for edit/config actions
 EOF
     exit 1
@@ -73,6 +75,9 @@ EOF
         apply_defaults
         validate_config
         info "Config reloaded."
+        return 0 ;;
+      --tui|--show-tui)
+        show_tui
         return 0 ;;
     esac
   done

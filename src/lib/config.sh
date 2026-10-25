@@ -23,6 +23,7 @@ declare -A KEY_ENV=(
   [EDITOR]=EDITOR
   [HISTORY_FILE]=HISTORY_FILE
   [MAX_RETRIES]=MAX_RETRIES
+  [TUI]=AIDO_TUI
 )
 
 # load_config — source the user config file, filling any key not already set
@@ -56,6 +57,7 @@ apply_defaults() {
   EDITOR="${EDITOR:-vim}"
   HISTORY_FILE="${HISTORY_FILE:-${HOME}/.aido/history.jsonl}"
   MAX_RETRIES="${MAX_RETRIES:-2}"
+  TUI="${TUI:-auto}"
 
   # BASE_URL: prefer explicit, fall back to OLLAMA_HOST + /v1, else default Ollama /v1
   if [[ -z "${BASE_URL:-}" ]]; then
@@ -84,6 +86,9 @@ API_KEY=
 TEMPERATURE=0.1
 EDITOR=vim
 MAX_RETRIES=2
+# TUI: auto | ansi | gum | dialog | whiptail
+# auto picks the best available (gum > dialog/whiptail > ansi)
+TUI=auto
 EOF
   info "Created template config at ${CONFIG_FILE}"
 }
@@ -101,4 +106,11 @@ validate_config() {
     info "Warning: MAX_RETRIES='${MAX_RETRIES}' is not a number; using 2"
     MAX_RETRIES=2
   }
+  case "${TUI,,}" in
+    auto|ansi|gum|dialog|whiptail) TUI="${TUI,,}" ;;
+    *)
+      info "Warning: TUI='${TUI}' is not valid (auto|ansi|gum|dialog|whiptail); using auto"
+      TUI=auto
+      ;;
+  esac
 }

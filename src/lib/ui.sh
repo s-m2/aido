@@ -28,15 +28,38 @@ edit_in_editor() {
   printf '%s' "$result"
 }
 
-# Detect best available UI helper once.
+# Resolve UI_MODE from TUI config (or auto-detect).
+# Sets UI_MODE to one of: gum, dialog, whiptail, ansi
 detect_ui() {
-  if command -v gum >/dev/null 2>&1; then
-    UI_MODE=gum
-  elif command -v dialog >/dev/null 2>&1; then
-    UI_MODE=dialog
-  else
-    UI_MODE=ansi
+  local want="${TUI:-auto}"
+  case "$want" in
+    gum|dialog|whiptail|ansi)
+      if [[ "$want" == "ansi" ]] || command -v "$want" >/dev/null 2>&1; then
+        UI_MODE="$want"
+      else
+        info "Warning: TUI='$want' requested but '$want' not found; falling back"
+        want=auto
+      fi
+      ;;
+  esac
+
+  if [[ "$want" == "auto" || -z "${UI_MODE:-}" ]]; then
+    if command -v gum >/dev/null 2>&1; then
+      UI_MODE=gum
+    elif command -v dialog >/dev/null 2>&1; then
+      UI_MODE=dialog
+    elif command -v whiptail >/dev/null 2>&1; then
+      UI_MODE=whiptail
+    else
+      UI_MODE=ansi
+    fi
   fi
+}
+
+# Print the resolved TUI mode (for --tui).
+show_tui() {
+  detect_ui
+  echo "$UI_MODE"
 }
 
 # Show a short spinner message (non-blocking-ish for generation).
@@ -86,8 +109,8 @@ interactive_loop() {
       gum)
         choice=$(gum choose --header "What next?" "approve" "edit command" "explain" "edit prompt" "cancel") || choice=cancel
         ;;
-      dialog)
-        choice=$(dialog --stdout --menu "What next?" 14 50 5 \
+      dialog|whiptail)
+        choice=$(${UI_MODE} --stdout --menu "What next?" 14 50 5 \
           a "approve" e "edit command" x "explain" p "edit prompt" c "cancel" 2>&1) || choice=c
         ;;
       *)
