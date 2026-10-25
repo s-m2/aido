@@ -85,6 +85,28 @@ show_command() {
   echo
 }
 
+# Show text to the user in a way that matches the current UI mode.
+# For dialog/whiptail this is a blocking msgbox so the text isn't lost
+# when the next menu opens.
+show_text() {
+  local title="$1"
+  local body="$2"
+  case "${UI_MODE:-ansi}" in
+    dialog)
+      dialog --title "$title" --msgbox "$body" 20 70
+      ;;
+    whiptail)
+      whiptail --title "$title" --msgbox "$body" 20 70
+      ;;
+    *)
+      echo
+      echo "${YELLOW}${BOLD}${title}:${RESET}"
+      echo "$body"
+      echo
+      ;;
+  esac
+}
+
 # interactive_loop <prompt>
 # The core state machine: generate, then offer approve/edit/explain/prompt/cancel.
 interactive_loop() {
@@ -118,9 +140,6 @@ interactive_loop() {
         choice=$(gum choose --header "What next?" "approve" "edit command" "explain" "edit prompt" "cancel") || choice=cancel
         ;;
       dialog)
-        # List has only the non-button actions. Ok/Approve confirms the highlighted
-        # item; Cancel cancels. To approve the command, highlight nothing special
-        # and press Approve (we treat a missing/empty tag as approve).
         choice=$(dialog --stdout --title "aido" \
           --ok-label "Approve" --cancel-label "Cancel" \
           --menu "$menu_text" 18 70 3 \
@@ -133,8 +152,6 @@ interactive_loop() {
         fi
         ;;
       whiptail)
-        # Same layout. whiptail has no --extra-button, so Ok confirms the list item
-        # and Cancel cancels. Empty tag (shouldn't happen) is treated as approve.
         choice=$(whiptail --title "aido" \
           --ok-button "Approve" --cancel-button "Cancel" \
           --menu "$menu_text" 18 70 3 \
@@ -173,14 +190,22 @@ interactive_loop() {
         # loop again to show the edited command
         ;;
       x|explain)
-        echo
-        info "Asking model to explain..."
+        # Show a waiting indicator that matches the UI, then the result.
+        case "${UI_MODE:-ansi}" in
+          dialog)
+            dialog --title "aido" --infobox "Asking model to explain..." 5 40
+            ;;
+          whiptail)
+            whiptail --title "aido" --infobox "Asking model to explain..." 5 40
+            ;;
+          *)
+            info "Asking model to explain..."
+            ;;
+        esac
         local explain_sys="You are a helpful shell assistant. Explain the following command clearly and concisely: what it does, any important flags, potential risks, and safer alternatives if relevant. Keep it short."
         local explanation
         explanation=$(call_llm "$cmd" "$explain_sys") || explanation="(explain failed)"
-        echo "${YELLOW}${BOLD}Explanation:${RESET}"
-        echo "$explanation"
-        echo
+        show_text "Explanation" "$explanation"
         # stay in the loop so user can still approve/edit/cancel
         ;;
       p|"edit prompt")
