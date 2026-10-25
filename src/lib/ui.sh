@@ -68,6 +68,12 @@ show_generating() {
     gum)
       gum spin --spinner line --title "Generating command with ${MODEL}..." -- sleep 0.1 >/dev/null 2>&1 || true
       ;;
+    dialog)
+      dialog --title "aido" --infobox "Generating command with ${MODEL}..." 5 50
+      ;;
+    whiptail)
+      whiptail --title "aido" --infobox "Generating command with ${MODEL}..." 5 50
+      ;;
     *)
       info "Generating command with ${MODEL}..."
       ;;
@@ -215,6 +221,19 @@ interactive_loop() {
         if (( retries > MAX_RETRIES )); then
           info "Too many prompt retries. Consider refining your request."
         fi
+        # After the editor closes, show a regenerating indicator so the
+        # screen doesn't look frozen while the model runs.
+        case "${UI_MODE:-ansi}" in
+          dialog)
+            dialog --title "aido" --infobox "Regenerating command..." 5 40
+            ;;
+          whiptail)
+            whiptail --title "aido" --infobox "Regenerating command..." 5 40
+            ;;
+          *)
+            info "Regenerating command..."
+            ;;
+        esac
         ;;
       c|q|cancel)
         info "Cancelled."
