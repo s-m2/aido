@@ -110,19 +110,14 @@ show_text() {
 }
 
 # Non-blocking waiting indicator.
-# dialog --infobox works. whiptail --infobox is broken in xterm (draws on the
-# alternate screen and immediately switches back), so we fall back to a
-# plain info line that stays visible on the shell.
+# dialog --infobox works. whiptail --infobox is broken in xterm-style
+# terminals (blank box / alternate-screen bug), so we use a plain info
+# line that stays visible on the shell.
 show_wait() {
   local msg="$1"
   case "${UI_MODE:-ansi}" in
     dialog)
       dialog --title "aido" --infobox "$msg" 5 50
-      ;;
-    whiptail)
-      # Try the TERM workaround; if it still vanishes, the info line remains.
-      TERM=vt220 whiptail --title "aido" --infobox "$msg" 5 50 2>/dev/null || true
-      info "$msg"
       ;;
     *)
       info "$msg"
