@@ -24,6 +24,38 @@ flowchart TD
 - **Dry-run** — preview a generated command without the interactive loop.
 - **Command history** — every run is logged to `~/.aido/history.jsonl`.
 
+## Quickstart
+
+Get aido running in a few steps. Everything below assumes you're on Linux/macOS with [Docker](https://docs.docker.com/get-started/) installed.
+
+**1. Start an Ollama server** (runs locally, your prompts never leave your machine):
+
+```bash
+docker pull ollama/ollama
+docker run -d -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
+```
+
+**2. Pull the default model** (`qwen2.5-coder:7b`). The server lives inside the container on the same port:
+
+```bash
+docker exec -it ollama ollama pull qwen2.5-coder:7b
+```
+
+**3. Install aido** (to `~/.local`, no root needed):
+
+```bash
+./scripts/install.sh
+export PATH="$HOME/.local/bin:$PATH"   # so `aido` is on your PATH
+```
+
+**4. Try it out:**
+
+```bash
+aido --dry-run "list the three largest files in the current directory"
+```
+
+See [`docs/USAGE.md`](docs/USAGE.md) for the full command loop, and [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md) for tuning model, host, temperature and more.
+
 ## Install
 
 Requires: `bash`, `curl`, `jq` (and [Ollama](https://ollama.com) running).
