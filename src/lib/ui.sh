@@ -82,29 +82,6 @@ show_command() {
   echo
 }
 
-# Horizontal gum selector (exploratory).
-# gum choose is vertical-only, so we style the options with gum style,
-# join them horizontally, and read a letter key (same as the ANSI prompt).
-# To revert: restore the gum choose line in interactive_loop and remove this.
-gum_horizontal_choose() {
-  local a e x p c row
-  a=$(gum style --border rounded --padding "0 1" --foreground 212 --bold "a approve")
-  e=$(gum style --border rounded --padding "0 1" --foreground 250 "e edit")
-  x=$(gum style --border rounded --padding "0 1" --foreground 250 "x explain")
-  p=$(gum style --border rounded --padding "0 1" --foreground 250 "p prompt")
-  c=$(gum style --border rounded --padding "0 1" --foreground 240 "c cancel")
-  row=$(gum join --horizontal "$a" "$e" "$x" "$p" "$c" 2>/dev/null) || {
-    # If join fails, fall back to a plain styled line
-    row="$(gum style --foreground 212 'a approve')  $(gum style --foreground 250 'e edit')  $(gum style --foreground 250 'x explain')  $(gum style --foreground 250 'p prompt')  $(gum style --foreground 240 'c cancel')"
-  }
-  echo
-  echo "$row"
-  echo -n "  > "
-  local key
-  read -r key </dev/tty
-  printf '%s' "$key"
-}
-
 # interactive_loop <prompt>
 # The core state machine: generate, then offer approve/edit/explain/prompt/cancel.
 interactive_loop() {
@@ -127,8 +104,7 @@ interactive_loop() {
     local choice
     case "${UI_MODE:-ansi}" in
       gum)
-        # Vertical (original): choice=$(gum choose --header "What next?" "approve" "edit command" "explain" "edit prompt" "cancel") || choice=cancel
-        choice=$(gum_horizontal_choose) || choice=cancel
+        choice=$(gum choose --header "What next?" "approve" "edit command" "explain" "edit prompt" "cancel") || choice=cancel
         ;;
       *)
         echo -n "${BOLD}[a]${RESET}pprove  ${BOLD}[e]${RESET}dit command  ${BOLD}[x]${RESET}explain  ${BOLD}[p]${RESET}rompt again  ${BOLD}[c]${RESET}ancel  > "
