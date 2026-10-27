@@ -52,12 +52,12 @@ load_config() {
 # apply_defaults — fill in any key not set by an explicit env var or the config
 # file (env > file > default). Runs AFTER load_config().
 apply_defaults() {
-  MODEL="${MODEL:-qwen2.5-coder:7b}"
+  MODEL="${MODEL:-qwen2.5-coder:3b-instruct}"
   TEMPERATURE="${TEMPERATURE:-0.1}"
   EDITOR="${EDITOR:-vim}"
   HISTORY_FILE="${HISTORY_FILE:-${HOME}/.aido/history.jsonl}"
   MAX_RETRIES="${MAX_RETRIES:-2}"
-  TUI="${TUI:-auto}"
+  TUI="${TUI:-ansi}"
 
   # BASE_URL: prefer explicit, fall back to OLLAMA_HOST + /v1, else default Ollama /v1
   if [[ -z "${BASE_URL:-}" ]]; then
@@ -78,7 +78,7 @@ ensure_config_template() {
 # aido user config (~/.config/aido/config.env)
 # One KEY=value per line. Lines starting with # are comments.
 # Set a value to blank to fall back to the built-in default.
-MODEL=qwen2.5-coder:7b
+MODEL=qwen2.5-coder:3b-instruct
 # OpenAI-compatible base URL (Ollama default shown). Append /v1 is automatic if using OLLAMA_HOST.
 BASE_URL=http://localhost:11434/v1
 # Optional API key (leave blank for local Ollama)
@@ -88,7 +88,7 @@ EDITOR=vim
 MAX_RETRIES=2
 # TUI: auto | ansi | gum
 # auto picks gum if installed, otherwise ansi
-TUI=auto
+TUI=ansi
 EOF
   info "Created template config at ${CONFIG_FILE}"
 }

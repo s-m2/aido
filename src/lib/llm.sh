@@ -50,8 +50,8 @@ call_llm() {
   fi
 
   # Strip accidental markdown fences if the model misbehaves
-  text=$(echo "$text" | sed -E 's/^```(bash|sh|text)?//; s/```$//' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-
+  text=$(echo "$text" | sed -E 's/^```(bash|sh|text)?//; s/```$//' | sed -e 's/^`//; s/`$//' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+  # Alternatively, sed 's/^[`]*//;s/[`]$//' to strip all backticks, but that may be too aggressive.
   echo "$text"
 }
 
