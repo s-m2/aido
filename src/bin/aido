@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# aido - AI-assisted command generation (Ollama backend)
+# aido - AI-assisted command generation (OpenAI-compatible backend)
 set -euo pipefail
 
 # ──────────────────────────────────────────────
@@ -44,13 +44,17 @@ Examples:
   aido "create a python virtualenv and install requests"
 
 Options:
-  --config     Edit the user config (~/.config/aido/config.env)
-  --dry-run, -n  Generate a command without the interactive loop
+  --config         Edit the user config (~/.config/aido/config.env)
+  --dry-run, -n    Generate a command without the interactive loop
+  --tui, --show-tui  Print the resolved TUI mode (ansi|gum|dialog|whiptail) and exit
 
 Environment variables (override config file):
-  AIDO_MODEL          Ollama model (default: qwen2.5-coder:7b)
-  OLLAMA_HOST         Ollama API URL (default: http://localhost:11434)
+  AIDO_MODEL          Model name (default: qwen2.5-coder:7b)
+  AIDO_BASE_URL       OpenAI-compatible base URL (default: http://localhost:11434/v1)
+  OLLAMA_HOST         Legacy: used to derive BASE_URL if set
+  AIDO_API_KEY        Optional API key for cloud endpoints
   AIDO_TEMPERATURE    Sampling temperature (default: 0.1)
+  AIDO_TUI            TUI mode: auto|ansi|gum|dialog|whiptail (default: auto)
   EDITOR              Editor for edit/config actions
 EOF
     exit 1
@@ -68,8 +72,12 @@ EOF
         info "(save and exit to apply your config)"
         ${EDITOR} "$CONFIG_FILE" </dev/tty >/dev/tty
         load_config
+        apply_defaults
         validate_config
         info "Config reloaded."
+        return 0 ;;
+      --tui|--show-tui)
+        show_tui
         return 0 ;;
     esac
   done
@@ -77,15 +85,13 @@ EOF
   # Quick sanity checks
   command -v curl >/dev/null || die "curl is required"
   command -v jq   >/dev/null || die "jq is required"
-  # Remove ollama bin warning, many users probably use docker or Ollama on LAN.
-  # command -v ollama >/dev/null || info "Warning: 'ollama' binary not found in PATH (API may still work)"
 
   # Non-interactive dry run: generate the command and print it, no approval loop.
   for arg in "$@"; do
     case "$arg" in
       -n|--dry-run)
         info "Dry run: generating command with ${MODEL}..."
-        cmd=$(call_ollama "$user_prompt")
+        cmd=$(call_llm "$user_prompt")
         echo "$cmd"
         exit 0
         ;;

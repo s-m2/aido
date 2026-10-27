@@ -12,5 +12,13 @@ aido --config          # edit the user config
 After a command is generated you're prompted:
 
 ```
-[a]pprove  [e]dit command  [p]rompt again  [c]ancel
+[a]pprove  [e]dit command  [x]explain  [p]rompt again  [c]ancel
 ```
+
+- **a / approve** — run the command
+- **e / edit command** — open the command in `$EDITOR`
+- **x / explain** — ask the model to explain what the command does (stays in the loop)
+- **p / edit prompt** — refine the original natural-language request and regenerate
+- **c / cancel** — abort
+
+If `gum` is installed, the menu is presented with that tool instead of the plain text prompt.

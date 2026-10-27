@@ -1,13 +1,18 @@
 # ──────────────────────────────────────────────
-# llm.sh — Ollama caller (real backend)
+# llm.sh — OpenAI-compatible caller (works with Ollama /v1, llama.cpp, etc.)
 # ──────────────────────────────────────────────
 
-# call_ollama <user_prompt>
-# Prints a single cleaned command to stdout. Returns non-zero on failure.
-call_ollama() {
+# call_llm <user_prompt> [system_override]
+# Prints cleaned model response to stdout. Returns non-zero on failure.
+call_llm() {
   local user_prompt="$1"
+  local system_override="${2:-}"
   local system_prompt
-  system_prompt=$(build_system_prompt)
+  if [[ -n "$system_override" ]]; then
+    system_prompt="$system_override"
+  else
+    system_prompt=$(build_system_prompt)
+  fi
 
   local payload
   payload=$(jq -n \
@@ -17,31 +22,38 @@ call_ollama() {
     --argjson temp "$TEMPERATURE" \
     '{
       model: $model,
-      system: $system,
-      prompt: $prompt,
-      stream: false,
-      think: false,
-      options: { temperature: $temp }
+      messages: [
+        {role: "system", content: $system},
+        {role: "user", content: $prompt}
+      ],
+      temperature: $temp,
+      stream: false
     }')
 
   local response
+  local headers=()
+  [[ -n "${API_KEY:-}" ]] && headers+=(-H "Authorization: Bearer ${API_KEY}")
+
   if ! response=$(curl -sS --max-time 120 --fail \
-        -X POST "${OLLAMA_HOST}/api/generate" \
+        -X POST "${BASE_URL%/}/chat/completions" \
         -H "Content-Type: application/json" \
+        "${headers[@]}" \
         -d "$payload"); then
-    die "Failed to reach Ollama at ${OLLAMA_HOST}. Is it running? (ollama serve)"
+    die "Failed to reach LLM at ${BASE_URL}. Is the server running?"
   fi
 
-  # Extract the response text and clean it
-  local cmd
-  cmd=$(echo "$response" | jq -r '.response // empty' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+  local text
+  text=$(echo "$response" | jq -r '.choices[0].message.content // empty' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
 
-  if [[ -z "$cmd" ]]; then
-    die "Ollama returned an empty response"
+  if [[ -z "$text" ]]; then
+    die "LLM returned an empty response"
   fi
 
   # Strip accidental markdown fences if the model misbehaves
-  cmd=$(echo "$cmd" | sed -E 's/^```(bash|sh)?//; s/```$//' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-
-  echo "$cmd"
+  text=$(echo "$text" | sed -E 's/^```(bash|sh|text)?//; s/```$//' | sed -e 's/^`//; s/`$//' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+  # Alternatively, sed 's/^[`]*//;s/[`]$//' to strip all backticks, but that may be too aggressive.
+  echo "$text"
 }
+
+# Backward-compatible alias
+call_ollama() { call_llm "$@"; }
